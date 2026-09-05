@@ -1,0 +1,15 @@
+{
+  "name": "linkshrink",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A tiny URL shortener — the Blast Radius demo service.",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
+  }
+}

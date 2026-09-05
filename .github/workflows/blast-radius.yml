@@ -1,0 +1,20 @@
+name: Blast Radius
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write
+  security-events: write
+
+jobs:
+  blast-radius:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: entire-hackathon/blast-radius@main
+        with:
+          upload-sarif: "true"
