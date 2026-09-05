@@ -14,4 +14,12 @@ describe("LinkRepo", () => {
   it("returns null for a missing slug", () => {
     expect(linkRepo.byId("missing")).toBeNull();
   });
+
+  it("saves a link", () => {
+    linkRepo.save({ slug: "new", url: "https://new.example", hits: 0 });
+  });
+
+  it("increments the hit counter", () => {
+    linkRepo.hit("xy");
+  });
 });
