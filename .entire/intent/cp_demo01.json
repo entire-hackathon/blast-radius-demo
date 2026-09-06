@@ -1,0 +1,6 @@
+{
+  "checkpoint": "cp_demo01",
+  "title": "Rate-limit the redirect endpoint",
+  "prompt": "Add token-bucket rate limiting to the redirect endpoint so abusive clients get 429 responses. Keep it in-memory and per-IP for now.",
+  "body": "Add token-bucket rate limiting to the redirect endpoint so abusive clients get 429 responses. Keep it in-memory and per-IP for now."
+}
