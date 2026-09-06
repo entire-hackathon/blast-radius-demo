@@ -1,20 +1,89 @@
 name: Blast Radius
 
+# Runs the Blast Radius tool from the hackathon fork
+# (entire-hackathon/entire-graph @ build/blast-radius) against this PR.
 on:
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
   pull-requests: write
-  security-events: write
 
 jobs:
   blast-radius:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout this repo
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: entire-hackathon/blast-radius@main
+
+      - name: Checkout the Blast Radius tool
+        uses: actions/checkout@v4
         with:
-          upload-sarif: "true"
+          repository: entire-hackathon/entire-graph
+          ref: build/blast-radius
+          path: _tool
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+          cache: false
+
+      - name: Cache the entire-graph binary
+        id: eg-cache
+        uses: actions/cache@v4
+        with:
+          path: bin/entire-graph
+          key: eg-${{ runner.os }}-${{ hashFiles('_tool/go.sum') }}
+
+      - name: Build entire-graph
+        if: steps.eg-cache.outputs.cache-hit != 'true'
+        working-directory: _tool
+        run: |
+          CGO_ENABLED=1 go build -trimpath -o "$GITHUB_WORKSPACE/bin/entire-graph" ./cmd/entire-graph
+          "$GITHUB_WORKSPACE/bin/entire-graph" version
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Build the CLI
+        working-directory: _tool/blast-radius
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+
+      - name: Run Blast Radius
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          set -euo pipefail
+          BASE="${{ github.event.pull_request.base.sha || 'HEAD~1' }}"
+          HEAD="${{ github.event.pull_request.head.sha || 'HEAD' }}"
+          node _tool/blast-radius/dist/cli.js review \
+            --repo . \
+            --entire-graph "$GITHUB_WORKSPACE/bin/entire-graph" \
+            --base "$BASE" --head "$HEAD" \
+            --graph-head --profile fast \
+            --pr-title "${PR_TITLE:-}" --pr-body "${PR_BODY:-}" \
+            --blob-url-base "${{ github.server_url }}/${{ github.repository }}/blob/$HEAD" \
+            --out "$RUNNER_TEMP/blast-radius.md"
+          { echo "## 🧨 Blast Radius"; echo; cat "$RUNNER_TEMP/blast-radius.md"; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Comment on the PR
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          body="$RUNNER_TEMP/blast-radius.md"
+          id=$(gh api "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments?per_page=100" \
+                --jq '[.[] | select(.body | startswith("<!-- blast-radius -->"))][0].id // empty')
+          if [ -n "$id" ]; then
+            gh api --method PATCH "repos/${{ github.repository }}/issues/comments/$id" -F "body=@$body"
+          else
+            gh api --method POST "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" -F "body=@$body"
+          fi
